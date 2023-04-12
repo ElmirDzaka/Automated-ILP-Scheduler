@@ -16,6 +16,14 @@ def main(argv):
     main:
     The main function calls all helper methods and runs the program.
     """
+    input_file = str(argv[0])
+    print(input_file)
+
+    g_input = nx.read_edgelist(input_file)
+    print(g_input.nodes["v1"])
+    
+    exit()
+
     graph = write_edgelist();
     nx.write_edgelist(graph, "./test.edgelist");
 
@@ -94,7 +102,5 @@ def write_edgelist():
     return G
     
     
-
-
 if __name__ == "__main__":
     main(sys.argv[1:])
