@@ -10,96 +10,27 @@ This file takes in an edgelist graph and processes it using NetworkX.
 import sys
 import networkx as nx
 import matplotlib.pyplot as plt
+import argparse
 
 def main(argv):
     """
     main:
     The main function calls all helper methods and runs the program.
     """
-    input_file = str(argv[0])
-    print(input_file)
+    parser = argparse.ArgumentParser(
+                    prog='Automated ILP Scheduler',
+                    description='Automatically generates the schedule and produces the QoRs of the schedule for the given DFG graph. Interfaces with LPKSolver.',
+                    epilog='Developed by Elmir and Kidus :cool emoji:')
 
-    g_input = nx.read_edgelist(input_file)
-    print(g_input.nodes["v1"])
-    
-    exit()
+    parser.add_argument('-l', '--latency', type=int, help="The desired latency to minimize memory under.")      # option that takes a value
+    parser.add_argument('-a', '--area_cost', type=int, help="The desired area cost to minimize latency under.")      # option that takes a value
+    parser.add_argument('-g', '--graph', type=argparse.FileType('r'), help="The desired DFG to automate the schedule for using ILP. It should be in edgelist format.")      # option that takes a value
+    args = parser.parse_args()           
 
-    graph = write_edgelist();
-    nx.write_edgelist(graph, "./test.edgelist");
+    G = nx.read_edgelist(args.graph)
+    print(list(G.nodes(data=True)))
+    print(list(G.edges(data=True)))
 
-    #print(nx.info(graph))
-    print(graph.nodes["v1"])
-    
-    nx.draw(graph)
-    plt.show()
-
-
-def write_edgelist():
-    G = nx.DiGraph()
-    #add nodes from the example DFG
-
-    #source
-    G.add_node("s", type_="source")
-
-    #T1
-    G.add_node("v1", type_="alu")
-    G.add_node("v2", type_="alu")
-    G.add_node("v3", type_="mult")
-
-    #T2
-    G.add_node("v4", type_="alu")
-    G.add_node("v5", type_="shifter")
-    G.add_node("v6", type_="alu")
-
-    #T3
-    G.add_node("v7", type_="mult")
-    G.add_node("v8", type_="mult")
-
-    #T4
-    G.add_node("v9", type_="alu")
-
-    #sink
-    G.add_node("t", type_="sink")
-
-    #connect edges
-
-    #source
-    G.add_edge("s","v1")
-    G.add_edge("s","v2")
-    G.add_edge("s","v3")
-
-    #v1
-    G.add_edge("v1","v4")
-
-    #v2
-    G.add_edge("v2","v5")
-    G.add_edge("v2","v8")
-
-    #v3
-    G.add_edge("v3","v6")
-
-    #v4
-    G.add_edge("v4","v8")
-    G.add_edge("v4","v7")
-
-    #v5
-    G.add_edge("v5","v9")
-
-    #v6
-    G.add_edge("v6","t")
-
-    #v7
-    G.add_edge("v7","t")
-
-    #v8
-    G.add_edge("v8","v9")
-
-    #v9
-    G.add_edge("v9","t")
-
-    #sink
-
-    return G
     
     
 if __name__ == "__main__":
