@@ -28,10 +28,41 @@ def main(argv):
     args = parser.parse_args()           
 
     G = nx.read_edgelist(args.graph)
-    print(list(G.nodes(data=True)))
-    print(list(G.edges(data=True)))
+    #print(list(G.nodes(data=True)))
+    #print(list(G.edges(data=True)))
 
+    #test printing args
+    #print(args)
+
+    #ensure user inserts a graph
+    if args.graph is None:
+        print("please insert an edgelist graph using -g")
+
+    #generate cases for which scheduling algorithm to use (MR-LC or ML-RC)
+    #base case 
+    if args.latency is None and args.area_cost is None:
+        print("please insert a latency or area cost restaint using arguments -l or -a ")
+    elif args.latency is not None and args.area_cost is None:
+        print("1")
+        ml_rc(G)
+    elif args.latency is None and args.area_cost is not None:
+        print("2")
+        mr_lc(G)
+    elif args.latency is not None and args.area_cost is not None:
+        print("3")
+        both(G)
     
-    
+
+
+def ml_rc(G):
+    return
+
+def mr_lc(G):
+    return
+
+def both(G):
+    return
+
+
 if __name__ == "__main__":
     main(sys.argv[1:])
