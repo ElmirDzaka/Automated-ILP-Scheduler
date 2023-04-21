@@ -14,6 +14,7 @@ import sys
 import networkx as nx
 import matplotlib.pyplot as plt
 import argparse
+from queue import Queue
 
 def main(argv):
     """
@@ -43,14 +44,11 @@ def main(argv):
         exit()
     elif args.latency and args.area_cost is None:
         schedule_obj = "ML-RC"
-        ml_rc(graph)
     elif args.latency is None and args.area_cost:
         schedule_obj = "MR-LC"
-        mr_lc(graph)
     elif args.latency and args.area_cost:
         schedule_obj = "both"
         # TODO read/determine what pareto-optimal analysis using both results looks like
-        both(graph)
     
     print(f"schedule: {schedule_obj}")
     ilp_filename = f"auto_{schedule_obj}.ilp" 
@@ -70,7 +68,7 @@ def main(argv):
     #
     # TODO generate execution constraints
     #
-
+    generateExecFunc(graph, generated_ilp)
     #
     # TODO generate resource constraints (handle accordingly depending on ML-RC or MR-LC)
     #
@@ -95,6 +93,17 @@ def main(argv):
 
     # TODO Final things: clean up comments, remove unused code, clean documentaiton, README
     # follow assignment requirements: correct directories, test/example scripts to show case features
+
+
+# generate execution constraints for both ml-rc and mr-lc graphs
+def generateExecFunc(graph, generated_ilp):
+    #TODO implement DPS for ASAP and ALAP and generate exec func (probably create helper for DPS)c
+    unit_time = {}
+
+    #loop through nodes to generate scheduling
+    for node in graph.nodes(data=False):
+        print(node)
+
 
 
 #
@@ -139,16 +148,6 @@ def write_list(filename, list_strings):
         for s in list_strings:
             f.write("%s\n" % s)
 
-
-def ml_rc(G):
-    return
-
-def mr_lc(G):
-    return
-
-def both(G):
-    return
-
-
+# execute main
 if __name__ == "__main__":
     main(sys.argv[1:])
