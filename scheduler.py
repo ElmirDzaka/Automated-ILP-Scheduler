@@ -11,10 +11,9 @@ Start date: 4/3/2023
 Last updated: 4/18/2023
 """
 import sys
-import networkx as nx
-import matplotlib.pyplot as plt
 import argparse
-from queue import Queue
+import networkx as nx
+
 
 def main(argv):
     """
@@ -36,7 +35,7 @@ def main(argv):
         print("please insert an edgelist graph using -g")
         exit()
 
-    graph = nx.read_edgelist(args.graph)
+    graph = nx.read_edgelist(args.graph, create_using=nx.DiGraph)
 
     # generate cases for which scheduling algorithm to use (MR-LC or ML-RC)
     if args.latency is None and args.area_cost is None:
@@ -98,18 +97,53 @@ def main(argv):
 # generate execution constraints for both ml-rc and mr-lc graphs
 def generateExecFunc(graph, generated_ilp):
     #TODO implement DPS for ASAP and ALAP and generate exec func (probably create helper for DPS)c
-    unit_time = {}
+    unit_times = {}
+    seen = set()
 
-    #loop through nodes to generate scheduling
-    for node in graph.nodes(data=False):
-        print(node)
+    # TODO error check: make sure there is not a cycle
+
+    # Get the unit times for ASAP
+    s = list(graph.nodes())[0] # source node
+    unit_times[s] = 0
+    seen.add(s)
+    children = sorted(list(graph.adj[s]))
+    if not children:
+        raise Exception('Invalid DFG, there are no children connected to source.')
+    for child in children:
+        dfs(graph, child, unit_times, seen)
+    unit_time_asap = unit_times
+    print(unit_time_asap)
+
+    # TODO: error check: make sure all the nodes have been seen
+
+    #
+    # TODO: Get the unit times for ASAP
+    #
+
+    # generate execution constraints
 
 
+def dfs(graph, node, unit_times, seen, level=0):
+    '''
+        Does a depth first search for the given graph and determines the time a node/unit executes.
+        Recursively calls itself and keeps track of the node level. Updates the 'unit_times'
+        dict and 'seen' set.
+    '''
+    level += 1
+    n_level = unit_times.get(node, -1)
+    if level > n_level:
+        unit_times[node] = level
+    seen.add(node)
+    children = sorted(list(graph.adj[node]))
+    for child in children:
+        dfs(graph, child, unit_times, seen, level)
 
-#
-#  Generates the minimize funciton part of an ILP file using the given networkx graph, 
-#  writes it to the given ilp list and returns the unit costs.
+
 def generateMinFunc(graph, generated_ilp, var_letter):
+    '''
+        Generates the minimize funciton part of an ILP file using the given networkx graph, 
+        writes it to the given ilp list and returns the unit costs.
+    '''
     # determine all the units and their associated costs
     unit_costs = {}
     for edge in graph.edges(data=True):
@@ -131,9 +165,10 @@ def generateMinFunc(graph, generated_ilp, var_letter):
     return unit_costs
     
 
-#
-#  Generates the closing part of an ILP file.
 def generateClosing(generated_ilp, unit_costs, var_letter):
+    '''
+        Generates the closing part of an ILP file.
+    '''
     generated_ilp.append("Integer")
     closing = [f"{var_letter}{unit}" for unit, _ in unit_costs[1:-1]] # ignore source and sink
     closing = "  " + " ".join(x for x in closing)
@@ -141,13 +176,14 @@ def generateClosing(generated_ilp, unit_costs, var_letter):
     generated_ilp.append("End")
 
 
-#
-#  Takes a list of strings and writes them to a file line by line
 def write_list(filename, list_strings):
+    '''
+       Takes a list of strings and writes them to a file line by line. 
+    '''
     with open(filename, 'w') as f:
         for s in list_strings:
             f.write("%s\n" % s)
 
-# execute main
+
 if __name__ == "__main__":
     main(sys.argv[1:])
