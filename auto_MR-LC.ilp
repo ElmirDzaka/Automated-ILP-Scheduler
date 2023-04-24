@@ -1,0 +1,17 @@
+Minimize
+  2a1 + 2a2 + 3a3 + 5a4
+Subject To
+  e0: x00 = 1
+  e1: x11 = 1
+  e2: x21 + x22 = 1
+  e3: x31 + x32 + x33 = 1
+  e4: x42 = 1
+  e5: x52 + x53 = 1
+  e6: x62 + x63 + x64 = 1
+  e7: x73 + x74 = 1
+  e8: x83 = 1
+  e9: x94 = 1
+  en: xn5 = 1
+Integer
+  a1 a2 a3 a4
+End

@@ -8,7 +8,7 @@ This file takes in an edgelist graph and and automatically generates the schedul
 and produces the Quality-of-Results. Supports ML-RC, MR-LC, or both using Pareto-optimal analysis.
 
 Start date: 4/3/2023
-Last updated: 4/18/2023
+Last updated: 4/24/2023
 """
 import sys
 import argparse
@@ -25,17 +25,17 @@ def main(argv):
                     description='Automatically generates the schedule and produces the QoRs of the schedule for the given DFG graph. Interfaces with LPKSolver.',
                     epilog='Developed by Elmir and Kidus :cool emoji:')
 
-    parser.add_argument('-l', '--latency', type=int, help="The desired latency to minimize memory under.")      # option that takes a value
-    parser.add_argument('-a', '--area_cost', type=int, help="The desired area cost to minimize latency under.")      # option that takes a value
-    parser.add_argument('-g', '--graph', type=argparse.FileType('r'), help="The desired DFG to automate the schedule for using ILP. It should be in edgelist format.")      # option that takes a value
-    args = parser.parse_args()           
+    parser.add_argument('-l', '--latency', type=int, help="The desired latency to minimize memory under.")
+    parser.add_argument('-a', '--area_cost', type=int, help="The desired area cost to minimize latency under.")
+    parser.add_argument('-g', '--graph', type=argparse.FileType('r'), help="The desired DFG to automate the schedule for using ILP. It should be in edgelist format.")
+    args = parser.parse_args()
 
     # ensure user inserts a graph
     if args.graph is None:
         print("please insert an edgelist graph using -g")
         exit()
 
-    graph = nx.read_edgelist(args.graph, create_using=nx.DiGraph)
+    graph = nx.read_edgelist(args.graph, create_using=nx.DiGraph) # assumes first and last node are source and sink
 
     # generate cases for which scheduling algorithm to use (MR-LC or ML-RC)
     if args.latency is None and args.area_cost is None:
@@ -60,14 +60,12 @@ def main(argv):
     # generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
 
     # generate minimize function
-    var_letter = 'a'
-    unit_costs = generateMinFunc(graph, generated_ilp, var_letter)
+    unit_costs = generate_min_func(graph, generated_ilp)
     print(f"unit_costs: {unit_costs}")
 
-    #
-    # TODO generate execution constraints
-    #
-    generateExecFunc(graph, generated_ilp)
+    # generate execution constraints
+    generateExecFunc(graph, args.latency, generated_ilp)
+
     #
     # TODO generate resource constraints (handle accordingly depending on ML-RC or MR-LC)
     #
@@ -77,8 +75,7 @@ def main(argv):
     #
 
     # generate closing part
-    generateClosing(generated_ilp, unit_costs, var_letter)
-
+    generate_closing(unit_costs, generated_ilp)
 
     write_list(ilp_filename, generated_ilp)
 
@@ -95,35 +92,113 @@ def main(argv):
 
 
 # generate execution constraints for both ml-rc and mr-lc graphs
-def generateExecFunc(graph, generated_ilp):
-    #TODO implement DPS for ASAP and ALAP and generate exec func (probably create helper for DPS)c
-    unit_times = {}
-    seen = set()
+def generateExecFunc(graph, latency, generated_ilp, var_letter='x', cstr_var_letter='c'):
 
     # TODO error check: make sure there is not a cycle
 
-    # Get the unit times for ASAP
+    # first get the unit times for ASAP and ALAP
+    unit_times_asap = get_asap(graph)
+
+    t = list(graph.nodes())[-1] # sink node
+    asap_latency_cstr = unit_times_asap[t] - 1 # the level before sink is the time of the last unit exec
+    latency_cstr = latency if latency else asap_latency_cstr # either from user supplied latency constraint or ASAP
+    if latency < asap_latency_cstr: # error check: make sure latency isn't too small
+        raise Exception(f'Solution not posible, given latency constraint is too small. Should be at least {asap_latency_cstr}.')
+    
+    unit_times_alap = get_alap(graph, latency_cstr)
+    
+    print("asap: ", unit_times_asap, "\nalap: ", unit_times_alap)
+
+    # generate the execution constraints
+
+    # 'Subject To' part
+    generated_ilp.append("Subject To")
+
+    # add source constraint
+    id = time = 0
+    exec_func = f"{var_letter}{id}{time}"
+    line = f"  {cstr_var_letter}{id}: {exec_func} = 1"
+    generated_ilp.append(line)
+
+    # first sort and remove source and sink so nodes are iterated in order
+    nodes = sorted(list(graph.nodes()))
+    nodes.remove('s')
+    nodes.remove('t')
+
+    # add all the node constraints
+    for id, node in enumerate(nodes):
+        id += 1 # have index start at 1 because source was removed
+        start_time = unit_times_asap[node]
+        end_time = unit_times_alap[node]
+        exec_vars = []
+        for time in range(start_time, end_time + 1):
+            exec_vars.append(f"{var_letter}{id}{time}")
+
+        # ex. "  e0: x01 = 1" "  e3: x31 + x32 + x33 = 1"
+        exec_func = " + ".join(v for v in exec_vars)
+        line = f"  {cstr_var_letter}{id}: {exec_func} = 1"
+        generated_ilp.append(line)
+
+    # add sink constraint
+    id = 'n'
+    time = latency_cstr + 1 # the time for sink is one more then the last unit exec
+    exec_func = f"{var_letter}{id}{time}"
+    id = len(graph.nodes) - 1 # constraint ids start at 0
+    line = f"  {cstr_var_letter}{id}: {exec_func} = 1"
+    generated_ilp.append(line)
+
+
+def get_asap(graph):
+    '''
+        Get the ASAP unit times for the given graph.
+    '''
+    unit_times_asap = {}
+    seen = set()
+
+    level = 0
     s = list(graph.nodes())[0] # source node
-    unit_times[s] = 0
+    unit_times_asap[s] = level
     seen.add(s)
+
     children = sorted(list(graph.adj[s]))
     if not children:
         raise Exception('Invalid DFG, there are no children connected to source.')
     for child in children:
-        dfs(graph, child, unit_times, seen)
-    unit_time_asap = unit_times
-    print(unit_time_asap)
+        dfs(graph, child, unit_times_asap, seen, level)
 
-    # TODO: error check: make sure all the nodes have been seen
-
-    #
-    # TODO: Get the unit times for ASAP
-    #
-
-    # generate execution constraints
+    # error check: make sure all the nodes have been seen from source
+    if len(graph.nodes()) != len(seen):
+        raise Exception('Invalid DFG, there is at least one node that is untraversable from source.')
+    
+    return unit_times_asap
 
 
-def dfs(graph, node, unit_times, seen, level=0):
+def get_alap(graph, latency_cstr):
+    '''
+        Get the ALAP unit times for the given graph.
+    '''
+    unit_times_alap = {}
+    seen = set()
+
+    level = latency_cstr + 1 # sink node is one level above
+    t = list(graph.nodes())[-1] # sink node
+    unit_times_alap[t] = level
+    seen.add(t)
+
+    parents = sorted(list(graph.predecessors(t)))
+    if not parents:
+        raise Exception('Invalid DFG, there are no parents connected to sink.')
+    for parent in parents:
+        dfs_reverse(graph, parent, unit_times_alap, seen, level)
+
+    # error check: make sure all the nodes have been seen sink
+    if len(graph.nodes()) != len(seen):
+        raise Exception('Invalid DFG, there is at least one node that is untraversable from sink.')
+
+    return unit_times_alap
+
+
+def dfs(graph, node, unit_times, seen, level):
     '''
         Does a depth first search for the given graph and determines the time a node/unit executes.
         Recursively calls itself and keeps track of the node level. Updates the 'unit_times'
@@ -139,7 +214,23 @@ def dfs(graph, node, unit_times, seen, level=0):
         dfs(graph, child, unit_times, seen, level)
 
 
-def generateMinFunc(graph, generated_ilp, var_letter):
+def dfs_reverse(graph, node, unit_times, seen, level):
+    '''
+        Does a depth first search for the given graph and determines the time a node/unit executes.
+        Recursively calls itself and keeps track of the node level. Updates the 'unit_times'
+        dict and 'seen' set.
+    '''
+    level -= 1
+    n_level = unit_times.get(node, float('inf'))
+    if level < n_level:
+        unit_times[node] = level
+    seen.add(node)
+    parents = sorted(list(graph.predecessors(node)))
+    for parent in parents:
+        dfs_reverse(graph, parent, unit_times, seen, level)
+
+
+def generate_min_func(graph, generated_ilp, var_letter='a'):
     '''
         Generates the minimize funciton part of an ILP file using the given networkx graph, 
         writes it to the given ilp list and returns the unit costs.
@@ -165,7 +256,7 @@ def generateMinFunc(graph, generated_ilp, var_letter):
     return unit_costs
     
 
-def generateClosing(generated_ilp, unit_costs, var_letter):
+def generate_closing(unit_costs, generated_ilp, var_letter='a'):
     '''
         Generates the closing part of an ILP file.
     '''
