@@ -18,7 +18,7 @@ import networkx as nx
 def main(argv):
     """
     main:
-    The main function calls all helper methods and runs the program.
+    Starting point for the program.
     """
     parser = argparse.ArgumentParser(
                     prog='Automated ILP Scheduler',
@@ -58,15 +58,16 @@ def main(argv):
     # generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
 
     # generate minimize function
-    unit_costs = generate_min_func(graph, generated_ilp)
-    print(f"unit_costs: {unit_costs}")
+    node_unit, unit_cost = generate_min_func(graph, generated_ilp)
+    print("node units:", node_unit)
+    print(f"unit_costs: {unit_cost}")
 
     # TODO error check: make sure there is not a cycle
 
     # get the unit times for ASAP and ALAP
     unit_times_asap = get_asap(graph)
 
-    t = list(graph.nodes())[-1] # sink node
+    t = list(graph.nodes())[-1] # sink node (assumes is the last node)
     asap_latency_cstr = unit_times_asap[t] - 1 # the level before sink is the time of the last unit exec
     latency_cstr = args.latency if args.latency else asap_latency_cstr # either from user supplied latency constraint or ASAP
     if latency_cstr < asap_latency_cstr: # error check: make sure latency isn't too small
@@ -76,21 +77,17 @@ def main(argv):
     
     print("asap: ", unit_times_asap, "\nalap: ", unit_times_alap)
 
-    # generate execution constraints
-    generate_exec_cstr(graph, unit_times_asap, unit_times_alap, generated_ilp)
-
-    #
-    # TODO generate resource constraints (handle accordingly depending on ML-RC or MR-LC)
-    #
-    
-    # generate dependency constraints
-    generate_dep_cstr(graph, unit_times_asap, unit_times_alap, generated_ilp)
+    # generate execution, resource, and dependency constraints
+    generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
+    generate_rsrc_cstrs(graph, node_unit, unit_cost, schedule_obj, unit_times_asap, unit_times_alap, generated_ilp)
+    generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
 
     # NOTE might need more constraints? test and confirm
 
     # generate closing part
-    generate_closing(unit_costs, generated_ilp)
+    generate_closing(unit_cost, generated_ilp)
 
+    # write generated list as an .ilp file
     write_list(ilp_filename, generated_ilp)
 
     # TODO be sure to catch/determine any infeasibilties of the graph/ILP (almost done)
@@ -105,6 +102,39 @@ def main(argv):
     # follow assignment requirements: correct directories, test/example scripts to show case features
 
 
+def generate_min_func(graph, generated_ilp, var_letter='a'):
+    '''
+        Generates the minimize funciton part of an ILP file using the given networkx graph, 
+        writes it to the given ilp list and returns a node unit dict and unit costs.
+        \nex. "Minimize\n  2a1 + 2a2 + 3a3 + 5a4"
+    '''
+    # determine all the nodes and their associated units and costs
+    node_unit = {}
+    unit_cost = {}
+    for edge in graph.edges(data=True):
+        root = edge[0]
+        child = edge[1]
+        e_attr = edge[2]
+        root_unit = e_attr['root']
+        child_unit = e_attr['child']
+        root_cost = e_attr['root_cost']
+        child_cost = e_attr['child_cost']
+        node_unit[root] = root_unit
+        node_unit[child] = child_unit
+        unit_cost[root_unit] = root_cost
+        unit_cost[child_unit] = child_cost
+    node_unit = dict(sorted(node_unit.items()))
+    unit_cost = dict(sorted(unit_cost.items()))
+    
+    #min_func = ["2a1", "2a2", "3a3", "5a4"]
+    # ex. "  2a1 + 2a2 + 3a3 + 5a4"
+    min_func = [f"{cost}{var_letter}{unit}" for unit, cost in list(unit_cost.items())[1:-1]] # ignore source and sink
+    min_func = "  " + " + ".join(x for x in min_func)
+    generated_ilp.append("Minimize")
+    generated_ilp.append(min_func)
+    return node_unit, unit_cost
+
+
 def get_asap(graph):
     '''
         Get the ASAP unit times for the given graph.
@@ -114,7 +144,7 @@ def get_asap(graph):
     seen = set()
 
     level = 0
-    s = list(graph.nodes())[0] # source node
+    s = list(graph.nodes())[0] # source node (assumes is first node)
     unit_times_asap[s] = level
     seen.add(s)
 
@@ -189,22 +219,14 @@ def dfs_reverse(graph, node, unit_times, seen, level):
         dfs_reverse(graph, parent, unit_times, seen, level)
 
 
-def generate_exec_cstr(graph, unit_times_asap, unit_times_alap, generated_ilp, var_letter='x', cstr_var_letter='c'):
+def generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, var_letter='x', cstr_var_letter='e'):
     '''
         Generate execution constraints for both ml-rc and mr-lc graphs.
-        \nex. "  e0: x01 = 1" "  e3: x31 + x32 + x33 = 1"
+        \nex. "  e0: x01 = 1" or "  e3: x31 + x32 + x33 = 1"
     '''
     # 'Subject To' part
     generated_ilp.append("Subject To")
-
-    # sort the nodes then remove/reinsert source and sink
-    # so constraints can be added in the correct order
-    nodes = sorted(list(graph.nodes()))
-    nodes.remove('s')
-    nodes.remove('t')
-    nodes.insert(0, 's')
-    nodes.append('t')
-
+    nodes = getNodes(graph)
     for id, node in enumerate(nodes):
         id = 'n' if node == 't' else id
         start_time = unit_times_asap[node]
@@ -213,32 +235,69 @@ def generate_exec_cstr(graph, unit_times_asap, unit_times_alap, generated_ilp, v
         for time in range(start_time, end_time + 1):
             exec_cstr.append(f"{var_letter}{id}{time}")
 
-        # ex. "  e0: x01 = 1" "  e3: x31 + x32 + x33 = 1"
+        # ex. "  e0: x01 = 1" or "  e3: x31 + x32 + x33 = 1"
         exec_cstr = " + ".join(x for x in exec_cstr)
         line = f"  {cstr_var_letter}{id}: {exec_cstr} = 1"
         generated_ilp.append(line)
 
 
-def generate_dep_cstr(graph, unit_times_asap, unit_times_alap, generated_ilp, var_letter='x', cstr_var_letter='d'):
+def getNodes(graph):
+    '''
+        Sort the nodes then remove/reinsert the source and sink (assumed to be first and last node). 
+        Useful so that constraints can be added in the correct order.
+    '''
+    s = list(graph.nodes())[0] # source node (assumes is the first node)
+    t = list(graph.nodes())[-1] # sink node (assumes is the last node)
+    nodes = sorted(list(graph.nodes()))
+    nodes.remove(s)
+    nodes.remove(t)
+    nodes.insert(0, s)
+    nodes.append(t)
+    return nodes
+
+
+def generate_rsrc_cstrs(graph, node_unit, unit_cost, schedule_obj, unit_times_asap, unit_times_alap, generated_ilp, var_letter='x', cstr_var_letter='r', rsrc_var_letter='a'):
+    '''
+        Generate resource constraints for both ml-rc and mr-lc graphs.
+        \nex. "  r0: x42 - a1 <= 0" or "  r3: x11 + x21 - a3 <= 0"
+    '''
+    # TODO: handle schedule ml-rc vs mr-lc
+    # MR-LC
+    cstr_id = 0
+    nodes = getNodes(graph)
+    for unit, _ in list(unit_cost.items())[1:-1]:# ignore source and sink
+        nodes_unit = [n for n, u in node_unit.items() if unit == u]
+        for time in range(1, unit_times_asap['t']):
+            rsrc_cstr = []
+            for node in nodes_unit:
+                start_time = unit_times_asap[node]
+                end_time = unit_times_alap[node]
+                if time >= start_time and time <= end_time:
+                    rsrc_cstr.append(f"{var_letter}{nodes.index(node)}{time}")
+            if rsrc_cstr:
+                # ex. "  r0: x42 - a1 <= 0" or "  r3: x11 + x21 - a3 <= 0"
+                rsrc_cstr = " + ".join(x for x in rsrc_cstr)
+                line = f"  {cstr_var_letter}{cstr_id}: {rsrc_cstr} - {rsrc_var_letter}{unit} <= 0"
+                cstr_id += 1
+                generated_ilp.append(line) 
+            #print("rsrc_cstr: ", rsrc_cstr)
+
+
+def generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, var_letter='x', cstr_var_letter='d'):
     '''
         Generate dependency constraints for both ml-rc and mr-lc graphs.
-        ex. "  d0: 3x53 + 2x52 - 2x22 - 1x21 >= 1"
+        \nex. "  d0: 3x53 + 2x52 - 2x22 - 1x21 >= 1"
     '''
-    # sort the nodes then remove/reinsert source and sink
-    # so constraints can be added in the correct order
-    nodes = sorted(list(graph.nodes()))
-    nodes.remove('s')
-    nodes.remove('t')
-    nodes.insert(0, 's')
-    nodes.append('t')
-
+    
     # add all the node constraints
     cstr_id = 0
+    nodes = getNodes(graph)
     for id, node in enumerate(nodes):
         id = 'n' if node == 't' else id
 
         parents = sorted(list(graph.predecessors(node)))
-        if not parents or parents[0] == 's': # source dependencies are implicit from execution constraints
+        s = nodes[0] # source node (assumes is the first)
+        if not parents or parents[0] == s: # source dependencies are implicit from execution constraints
             continue
         
         # compute node slack
@@ -270,42 +329,15 @@ def generate_dep_cstr(graph, unit_times_asap, unit_times_alap, generated_ilp, va
                 line = f"  {cstr_var_letter}{cstr_id}: {dep_cstr} >= 1"
                 cstr_id += 1
                 generated_ilp.append(line)
-
-
-def generate_min_func(graph, generated_ilp, var_letter='a'):
-    '''
-        Generates the minimize funciton part of an ILP file using the given networkx graph, 
-        writes it to the given ilp list and returns the unit costs.
-        \nex. "Minimize\n  2a1 + 2a2 + 3a3 + 5a4"
-    '''
-    # determine all the units and their associated costs
-    unit_costs = {}
-    for edge in graph.edges(data=True):
-        e_attr = edge[2]
-        root = e_attr['root']
-        child = e_attr['child']
-        root_cost = e_attr['root_cost']
-        child_cost = e_attr['child_cost']
-        unit_costs[root] = root_cost
-        unit_costs[child] = child_cost
-    unit_costs = sorted(unit_costs.items())
-    
-    #min_func = ["2a1", "2a2", "3a3", "5a4"]
-    # ex. "  2a1 + 2a2 + 3a3 + 5a4"
-    min_func = [f"{cost}{var_letter}{unit}" for unit, cost in unit_costs[1:-1]] # ignore source and sink
-    min_func = "  " + " + ".join(x for x in min_func)
-    generated_ilp.append("Minimize")
-    generated_ilp.append(min_func)
-    return unit_costs
     
 
-def generate_closing(unit_costs, generated_ilp, var_letter='a'):
+def generate_closing(unit_cost, generated_ilp, var_letter='a'):
     '''
         Generates the closing part of an ILP file.
         \nex. "Integer\n  a1 a2 a3 a4\nEnd"
     '''
     generated_ilp.append("Integer")
-    closing = [f"{var_letter}{unit}" for unit, _ in unit_costs[1:-1]] # ignore source and sink
+    closing = [f"{var_letter}{unit}" for unit, _ in list(unit_cost.items())[1:-1]] # ignore source and sink
     closing = "  " + " ".join(x for x in closing)
     generated_ilp.append(closing)
     generated_ilp.append("End")
