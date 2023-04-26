@@ -16,6 +16,9 @@ import networkx as nx
 
 
 def main(argv):
+    """
+        The main function calls all helper methods and runs the program.
+    """
     parser = argparse.ArgumentParser(
                     prog='Automated ILP Scheduler',
                     description='Automatically generates the schedule and produces the QoRs of the schedule for the given DFG graph. Interfaces with LPKSolver.',
@@ -42,7 +45,7 @@ def main(argv):
     elif args.latency and not args.area_cost:
         schedule_obj = "MR-LC"
     elif args.latency and args.area_cost:
-        schedule_obj = "both"
+        schedule_obj = "both" # TODO read/determine what pareto-optimal analysis using both results looks like
     
     print(f"schedule: {schedule_obj}")
     ilp_filename = f"auto_{schedule_obj}.ilp" 
@@ -72,8 +75,10 @@ def main(argv):
     ## execution, resource, and dependency constraints
     ## closing part
     ## write list
-    generated_ilp = [] 
+    generated_ilp = []
+    generated_ilp.append("Minimize")
     generate_min_func(unit_cost, generated_ilp)
+    generated_ilp.append("Subject To")
     generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
     generate_rsrc_cstrs(graph, node_unit, unit_cost, schedule_obj, unit_times_asap, unit_times_alap, generated_ilp)
     generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
@@ -119,14 +124,12 @@ def generate_min_func(unit_cost, generated_ilp, var_letter='a'):
     '''
         Generates the minimize funciton part of an ILP file using 
         the given unit costs and writes it to the given ilp list.
-        \nex. "Minimize\n  2a1 + 2a2 + 3a3 + 5a4"
+        \nex. "  2a1 + 2a2 + 3a3 + 5a4"
     '''
     # ex. "  2a1 + 2a2 + 3a3 + 5a4"
     min_func = [f"{cost}{var_letter}{unit}" for unit, cost in list(unit_cost.items())[1:-1]] # ignore source and sink
     min_func = "  " + " + ".join(x for x in min_func)
-    generated_ilp.append("Minimize")
     generated_ilp.append(min_func)
-    
 
 
 def get_asap(graph):
@@ -218,8 +221,7 @@ def generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, 
         Generate execution constraints for both ml-rc and mr-lc graphs.
         \nex. "  e0: x01 = 1" or "  e3: x31 + x32 + x33 = 1"
     '''
-    # 'Subject To' part
-    generated_ilp.append("Subject To")
+    cstr_id = 0
     nodes = get_nodes(graph)
     for id, node in enumerate(nodes):
         id = 'n' if node == 't' else id
@@ -231,7 +233,8 @@ def generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, 
 
         # ex. "  e0: x01 = 1" or "  e3: x31 + x32 + x33 = 1"
         exec_cstr = " + ".join(x for x in exec_cstr)
-        line = f"  {cstr_var_letter}{id}: {exec_cstr} = 1"
+        line = f"  {cstr_var_letter}{cstr_id}: {exec_cstr} = 1"
+        cstr_id += 1
         generated_ilp.append(line)
 
 
