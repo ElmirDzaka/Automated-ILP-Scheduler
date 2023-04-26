@@ -16,10 +16,6 @@ import networkx as nx
 
 
 def main(argv):
-    """
-    main:
-    Starting point for the program.
-    """
     parser = argparse.ArgumentParser(
                     prog='Automated ILP Scheduler',
                     description='Automatically generates the schedule and produces the QoRs of the schedule for the given DFG graph. Interfaces with LPKSolver.',
@@ -47,18 +43,12 @@ def main(argv):
         schedule_obj = "MR-LC"
     elif args.latency and args.area_cost:
         schedule_obj = "both"
-        # TODO read/determine what pareto-optimal analysis using both results looks like
     
     print(f"schedule: {schedule_obj}")
     ilp_filename = f"auto_{schedule_obj}.ilp" 
     
-    ### Generate ILP 
-    generated_ilp = []
-    # ex. we can generate this line by line using the graph
-    # generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
-
-    # generate minimize function
-    node_unit, unit_cost = generate_min_func(graph, generated_ilp)
+    # parse graph and get node units and costs
+    node_unit, unit_cost = get_node_unit_cost(graph)
     print("node units:", node_unit)
     print(f"unit_costs: {unit_cost}")
 
@@ -72,26 +62,26 @@ def main(argv):
     latency_cstr = args.latency if args.latency else asap_latency_cstr # either from user supplied latency constraint or ASAP
     if latency_cstr < asap_latency_cstr: # error check: make sure latency isn't too small
         raise Exception(f'Solution not posible, given latency constraint is too small. Should be at least {asap_latency_cstr}.')
-    
     unit_times_alap = get_alap(graph, latency_cstr)
-    
     print("asap: ", unit_times_asap, "\nalap: ", unit_times_alap)
 
-    # generate execution, resource, and dependency constraints
+    ### Generate ILP file
+    # we can generate this line by line using the graph
+    # generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
+    ## minimize funciton
+    ## execution, resource, and dependency constraints
+    ## closing part
+    ## write list
+    generated_ilp = [] 
+    generate_min_func(unit_cost, generated_ilp)
     generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
     generate_rsrc_cstrs(graph, node_unit, unit_cost, schedule_obj, unit_times_asap, unit_times_alap, generated_ilp)
     generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
-
-    # NOTE might need more constraints? test and confirm
-
-    # generate closing part
     generate_closing(unit_cost, generated_ilp)
-
-    # write generated list as an .ilp file
     write_list(ilp_filename, generated_ilp)
 
-    # TODO be sure to catch/determine any infeasibilties of the graph/ILP (almost done)
-
+    # NOTE might need more constraints? test and confirm
+    
     # TODO run ILP solver glpk command with os/subprocess.run() to generate the schedule
     # ex. ./glpsol --cpxlp 'ilp_filename'
 
@@ -102,13 +92,10 @@ def main(argv):
     # follow assignment requirements: correct directories, test/example scripts to show case features
 
 
-def generate_min_func(graph, generated_ilp, var_letter='a'):
+def get_node_unit_cost(graph):
     '''
-        Generates the minimize funciton part of an ILP file using the given networkx graph, 
-        writes it to the given ilp list and returns a node unit dict and unit costs.
-        \nex. "Minimize\n  2a1 + 2a2 + 3a3 + 5a4"
+        Determine all the nodes and their associated units and costs.
     '''
-    # determine all the nodes and their associated units and costs
     node_unit = {}
     unit_cost = {}
     for edge in graph.edges(data=True):
@@ -125,14 +112,21 @@ def generate_min_func(graph, generated_ilp, var_letter='a'):
         unit_cost[child_unit] = child_cost
     node_unit = dict(sorted(node_unit.items()))
     unit_cost = dict(sorted(unit_cost.items()))
+    return node_unit, unit_cost
+
     
-    #min_func = ["2a1", "2a2", "3a3", "5a4"]
+def generate_min_func(unit_cost, generated_ilp, var_letter='a'):
+    '''
+        Generates the minimize funciton part of an ILP file using 
+        the given unit costs and writes it to the given ilp list.
+        \nex. "Minimize\n  2a1 + 2a2 + 3a3 + 5a4"
+    '''
     # ex. "  2a1 + 2a2 + 3a3 + 5a4"
     min_func = [f"{cost}{var_letter}{unit}" for unit, cost in list(unit_cost.items())[1:-1]] # ignore source and sink
     min_func = "  " + " + ".join(x for x in min_func)
     generated_ilp.append("Minimize")
     generated_ilp.append(min_func)
-    return node_unit, unit_cost
+    
 
 
 def get_asap(graph):
@@ -226,7 +220,7 @@ def generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, 
     '''
     # 'Subject To' part
     generated_ilp.append("Subject To")
-    nodes = getNodes(graph)
+    nodes = get_nodes(graph)
     for id, node in enumerate(nodes):
         id = 'n' if node == 't' else id
         start_time = unit_times_asap[node]
@@ -241,7 +235,7 @@ def generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, 
         generated_ilp.append(line)
 
 
-def getNodes(graph):
+def get_nodes(graph):
     '''
         Sort the nodes then remove/reinsert the source and sink (assumed to be first and last node). 
         Useful so that constraints can be added in the correct order.
@@ -264,7 +258,7 @@ def generate_rsrc_cstrs(graph, node_unit, unit_cost, schedule_obj, unit_times_as
     # TODO: handle schedule ml-rc vs mr-lc
     # MR-LC
     cstr_id = 0
-    nodes = getNodes(graph)
+    nodes = get_nodes(graph)
     for unit, _ in list(unit_cost.items())[1:-1]:# ignore source and sink
         nodes_unit = [n for n, u in node_unit.items() if unit == u]
         for time in range(1, unit_times_asap['t']):
@@ -291,7 +285,7 @@ def generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, v
     
     # add all the node constraints
     cstr_id = 0
-    nodes = getNodes(graph)
+    nodes = get_nodes(graph)
     for id, node in enumerate(nodes):
         id = 'n' if node == 't' else id
 
