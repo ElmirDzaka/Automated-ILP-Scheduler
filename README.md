@@ -16,14 +16,14 @@ Developed by [Elmir Dzaka](https://www.linkedin.com/in/elmir-dzaka-256b5b182/) a
 
 ## Version History
 
-Started development - 04/03/2023
+Started development on 04/03/2023
 
-Beta 
+### Beta 
 
-* 1.0 - 04/28/2023
+* 0.1 - 04/28/2023
     * Initial Release
     * MR-LC functionality implemented
 
 ## Resources
 
-* Professor 
+* Professor Cunxi Yu’s class slides

@@ -4,8 +4,8 @@ Elmir Dzaka
 Kidus Yohannes
 
 Summary:
-This file takes in an edgelist graph and and automatically generates the schedule using ILP solver GLPK
-and produces the Quality-of-Results. Supports ML-RC, MR-LC, or both using Pareto-optimal analysis.
+    his file takes in an edgelist graph and and automatically generates the schedule using ILP solver GLPK
+    and produces the Quality-of-Results. Supports ML-RC, MR-LC, or both using Pareto-optimal analysis.
 
 Start date: 4/3/2023
 Last updated: 4/27/2023
@@ -17,7 +17,7 @@ import networkx as nx
 
 def main(argv):
     """
-        The main function calls all helper methods and runs the program.
+        Starting point for the program.
     """
     parser = argparse.ArgumentParser(
                     prog='Automated ILP Scheduler',
@@ -84,16 +84,17 @@ def main(argv):
     generate_closing(unit_cost, generated_ilp)
     write_list(ilp_filename, generated_ilp)
 
-    # NOTE might need more constraints? test and confirm
-    
     # TODO run ILP solver glpk command with os/subprocess.run() to generate the schedule
     # ex. ./glpsol --cpxlp 'ilp_filename'
+
+    # NOTE might need non negative constraints? test and confirm
 
     # TODO parse the scheduler output and display it nicely back to the user (QoR - Quality of Results)
     # if time allows, generate a graph like in fig 1.
 
     # TODO Final things: clean up comments, remove unused code, clean documentaiton, README
-    # follow assignment requirements: correct directories, test/example scripts to show case features
+    # follow assignment requirements: correct directories, test/example scripts to show case features, 
+    # batch files, record videos, push pres and vid and docs to git, submit.
 
 
 def get_node_unit_cost(graph):
