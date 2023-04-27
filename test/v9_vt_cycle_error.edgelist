@@ -1,0 +1,15 @@
+s v1 {'root': 0, 'child': 3, 'root_cost': 0, 'child_cost': 3}
+s v2 {'root': 0, 'child': 3, 'root_cost': 0, 'child_cost': 3}
+s v3 {'root': 0, 'child': 4, 'root_cost': 0, 'child_cost': 5}
+v1 v4 {'root': 3, 'child': 1, 'root_cost': 3, 'child_cost': 2}
+v2 v5 {'root': 3, 'child': 2, 'root_cost': 3, 'child_cost': 2}
+v2 v8 {'root': 3, 'child': 4, 'root_cost': 3, 'child_cost': 5}
+v3 v6 {'root': 4, 'child': 3, 'root_cost': 5, 'child_cost': 3}
+v4 v8 {'root': 1, 'child': 4, 'root_cost': 2, 'child_cost': 5}
+v4 v7 {'root': 1, 'child': 4, 'root_cost': 2, 'child_cost': 5}
+v5 v9 {'root': 2, 'child': 3, 'root_cost': 2, 'child_cost': 3}
+v6 t {'root': 3, 'child': 5, 'root_cost': 3, 'child_cost': 0}
+v7 t {'root': 4, 'child': 5, 'root_cost': 5, 'child_cost': 0}
+v8 v9 {'root': 4, 'child': 3, 'root_cost': 5, 'child_cost': 3}
+v9 t {'root': 3, 'child': 5, 'root_cost': 3, 'child_cost': 0}
+t v9 {'root': 5, 'child': 3, 'root_cost': 0, 'child_cost': 3}

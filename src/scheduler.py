@@ -4,11 +4,11 @@ Elmir Dzaka
 Kidus Yohannes
 
 Summary:
-This file takes in an edgelist graph and and automatically generates the schedule using ILP solver GLPK,
+This file takes in an edgelist graph and and automatically generates the schedule using ILP solver GLPK
 and produces the Quality-of-Results. Supports ML-RC, MR-LC, or both using Pareto-optimal analysis.
 
 Start date: 4/3/2023
-Last updated: 4/25/2023
+Last updated: 4/27/2023
 """
 import sys
 import argparse
@@ -41,21 +41,25 @@ def main(argv):
         print("please insert a latency or area cost restaint using arguments -l or -a ")
         exit()
     elif not args.latency and args.area_cost:
-        schedule_obj = "ML-RC"
+        schedule_obj = "ML-RC" # TODO finish
     elif args.latency and not args.area_cost:
         schedule_obj = "MR-LC"
     elif args.latency and args.area_cost:
         schedule_obj = "both" # TODO read/determine what pareto-optimal analysis using both results looks like
     
     print(f"schedule: {schedule_obj}")
-    ilp_filename = f"auto_{schedule_obj}.ilp" 
+    ilp_filename = f"src\auto_{schedule_obj}.ilp" 
     
+    # error check: make sure there is not a cycle
+    visited = rec_stack = dict.fromkeys(sorted(graph), False)
+    for node in graph.nodes():
+        if is_cyclic(graph, node, visited, rec_stack):
+            raise Exception('Invalid DFG, there is a cycle detected in the graph.')
+
     # parse graph and get node units and costs
     node_unit, unit_cost = get_node_unit_cost(graph)
     print("node units:", node_unit)
     print(f"unit_costs: {unit_cost}")
-
-    # TODO error check: make sure there is not a cycle
 
     # get the unit times for ASAP and ALAP
     unit_times_asap = get_asap(graph)
@@ -68,13 +72,8 @@ def main(argv):
     unit_times_alap = get_alap(graph, latency_cstr)
     print("asap: ", unit_times_asap, "\nalap: ", unit_times_alap)
 
-    ### Generate ILP file
-    # we can generate this line by line using the graph
-    # generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
-    ## minimize funciton
-    ## execution, resource, and dependency constraints
-    ## closing part
-    ## write list
+    ### Generate ILP file, we can generate this line by line using the graph
+    # ex. generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
     generated_ilp = []
     generated_ilp.append("Minimize")
     generate_min_func(unit_cost, generated_ilp)
@@ -119,7 +118,29 @@ def get_node_unit_cost(graph):
     unit_cost = dict(sorted(unit_cost.items()))
     return node_unit, unit_cost
 
-    
+
+def is_cyclic(graph, node, visited, rec_stack):
+    '''
+        Checks if there is a cycle in the given graph.
+        Keeps track of visited nodes and ones on the recursive stack.
+        If a node is seen that is already in the recursive stack, then
+        that means there is a cycle.
+    '''
+    if rec_stack[node]: # if node was already seen in recursive stack
+        return True
+    if visited[node]: # node has already been seen
+        return False
+    visited[node] = rec_stack[node] = True
+
+    children = sorted(list(graph.adj[node]))
+    for child in children:
+        if is_cyclic(graph, child, visited, rec_stack):
+            return True
+            
+    rec_stack[node] = False # remove node from recursion stack before function ends
+    return False # no cycle exists
+
+
 def generate_min_func(unit_cost, generated_ilp, var_letter='a'):
     '''
         Generates the minimize funciton part of an ILP file using 
@@ -276,8 +297,7 @@ def generate_rsrc_cstrs(graph, node_unit, unit_cost, schedule_obj, unit_times_as
                 rsrc_cstr = " + ".join(x for x in rsrc_cstr)
                 line = f"  {cstr_var_letter}{cstr_id}: {rsrc_cstr} - {rsrc_var_letter}{unit} <= 0"
                 cstr_id += 1
-                generated_ilp.append(line) 
-            #print("rsrc_cstr: ", rsrc_cstr)
+                generated_ilp.append(line)
 
 
 def generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, var_letter='x', cstr_var_letter='d'):
@@ -285,7 +305,6 @@ def generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, v
         Generate dependency constraints for both ml-rc and mr-lc graphs.
         \nex. "  d0: 3x53 + 2x52 - 2x22 - 1x21 >= 1"
     '''
-    
     # add all the node constraints
     cstr_id = 0
     nodes = get_nodes(graph)
@@ -330,7 +349,7 @@ def generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, v
 
 def generate_closing(unit_cost, generated_ilp, var_letter='a'):
     '''
-        Generates the closing part of an ILP file.
+        Generates the closing part of an ILP file, which depends on the number of units.
         \nex. "Integer\n  a1 a2 a3 a4\nEnd"
     '''
     generated_ilp.append("Integer")
