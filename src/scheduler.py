@@ -48,7 +48,7 @@ def main(argv):
         schedule_obj = "both" # TODO read/determine what pareto-optimal analysis using both results looks like
     
     print(f"schedule: {schedule_obj}")
-    ilp_filename = f"src\auto_{schedule_obj}.ilp" 
+    ilp_filename = rf"src\auto_{schedule_obj}.ilp" 
     
     # error check: make sure there is not a cycle
     visited = rec_stack = dict.fromkeys(sorted(graph), False)
@@ -76,12 +76,13 @@ def main(argv):
     # ex. generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
     generated_ilp = []
     generated_ilp.append("Minimize")
-    generate_min_func(unit_cost, generated_ilp)
+    integer_set = []
+    generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp)
     generated_ilp.append("Subject To")
     generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
     generate_rsrc_cstrs(graph, node_unit, unit_cost, schedule_obj, unit_times_asap, unit_times_alap, generated_ilp)
     generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
-    generate_closing(unit_cost, generated_ilp)
+    generate_closing(schedule_obj, integer_set, unit_cost, generated_ilp)
     write_list(ilp_filename, generated_ilp)
 
     # TODO run ILP solver glpk command with os/subprocess.run() to generate the schedule
@@ -142,16 +143,36 @@ def is_cyclic(graph, node, visited, rec_stack):
     return False # no cycle exists
 
 
-def generate_min_func(unit_cost, generated_ilp, var_letter='a'):
+def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp, var_letter='a'):
     '''
         Generates the minimize funciton part of an ILP file using 
-        the given unit costs and writes it to the given ilp list.
-        \nex. "  2a1 + 2a2 + 3a3 + 5a4"
+        the given unit costs and writes it to the given ilp list depending
+        on the schedule_obj.
+        \nML-RC ex. "  blah blah
+        \nMR-LC ex. "  2a1 + 2a2 + 3a3 + 5a4"
     '''
-    # ex. "  2a1 + 2a2 + 3a3 + 5a4"
-    min_func = [f"{cost}{var_letter}{unit}" for unit, cost in list(unit_cost.items())[1:-1]] # ignore source and sink
-    min_func = "  " + " + ".join(x for x in min_func)
-    generated_ilp.append(min_func)
+    if schedule_obj == "ML-RC":
+        min_func = []
+        nodes = get_nodes(graph)
+        for id, node in enumerate(nodes):
+            id = 'n' if node == 't' else id
+            start_time = unit_times_asap[node]
+            end_time = unit_times_alap[node]
+            if start_time == end_time: # on critical path, redundant to include
+                continue
+            else:
+                for time in range(start_time, end_time + 1):
+                    min_func.append(f"{time}x{id}{time}")
+                    integer_set.append(f"x{id}{time}")
+        min_func = "  " + " + ".join(x for x in min_func)
+        generated_ilp.append(min_func)
+        return min_func
+
+    elif schedule_obj == "MR-LC":
+        # ex. "  2a1 + 2a2 + 3a3 + 5a4"
+        min_func = [f"{cost}{var_letter}{unit}" for unit, cost in list(unit_cost.items())[1:-1]] # ignore source and sink
+        min_func = "  " + " + ".join(x for x in min_func)
+        generated_ilp.append(min_func)
 
 
 def get_asap(graph):
@@ -348,16 +369,22 @@ def generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, v
                 generated_ilp.append(line)
     
 
-def generate_closing(unit_cost, generated_ilp, var_letter='a'):
+def generate_closing(schedule_obj, integer_set, unit_cost, generated_ilp, var_letter='a'):
     '''
         Generates the closing part of an ILP file, which depends on the number of units.
         \nex. "Integer\n  a1 a2 a3 a4\nEnd"
     '''
-    generated_ilp.append("Integer")
-    closing = [f"{var_letter}{unit}" for unit, _ in list(unit_cost.items())[1:-1]] # ignore source and sink
-    closing = "  " + " ".join(x for x in closing)
-    generated_ilp.append(closing)
-    generated_ilp.append("End")
+    if schedule_obj == "ML-RC":
+        generated_ilp.append("Integer")
+        integer_set = "  " + " ".join(x for x in integer_set)
+        generated_ilp.append(integer_set)
+        generated_ilp.append("End")
+    elif schedule_obj == "MR-LC":
+        generated_ilp.append("Integer")
+        closing = [f"{var_letter}{unit}" for unit, _ in list(unit_cost.items())[1:-1]] # ignore source and sink
+        closing = "  " + " ".join(x for x in closing)
+        generated_ilp.append(closing)
+        generated_ilp.append("End")
 
 
 def write_list(filename, list_strings):
