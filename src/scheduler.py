@@ -8,10 +8,11 @@ Summary:
     and produces the Quality-of-Results. Supports ML-RC, MR-LC, or both using Pareto-optimal analysis.
 
 Start date: 4/3/2023
-Last updated: 4/27/2023
+Last updated: 4/30/2023
 """
 import sys
 import argparse
+import os
 import networkx as nx
 
 
@@ -38,17 +39,17 @@ def main(argv):
 
     # generate cases for which scheduling algorithm to use (MR-LC or ML-RC)
     if args.latency is None and args.area_cost is None:
-        print("please insert a latency or area cost restaint using arguments -l or -a ")
+        print("please insert a latency or area cost restraint using arguments -l or -a ")
         exit()
     elif not args.latency and args.area_cost:
-        schedule_obj = "ML-RC" # TODO finish
+        schedule_obj = "ML-RC"
     elif args.latency and not args.area_cost:
         schedule_obj = "MR-LC"
     elif args.latency and args.area_cost:
         schedule_obj = "both" # TODO read/determine what pareto-optimal analysis using both results looks like
     
     print(f"schedule: {schedule_obj}")
-    ilp_filename = rf"src\auto_{schedule_obj}.ilp" 
+    ilp_filename = rf"auto_{schedule_obj}.ilp" 
     
     # error check: make sure there is not a cycle
     visited = rec_stack = dict.fromkeys(sorted(graph), False)
@@ -75,8 +76,8 @@ def main(argv):
     ### Generate ILP file, we can generate this line by line using the graph
     # ex. generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
     generated_ilp = []
-    generated_ilp.append("Minimize")
     integer_set = []
+    generated_ilp.append("Minimize")
     generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp)
     generated_ilp.append("Subject To")
     generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
@@ -87,6 +88,12 @@ def main(argv):
 
     # TODO run ILP solver glpk command with os/subprocess.run() to generate the schedule
     # ex. ./glpsol --cpxlp 'ilp_filename'
+    os.system("dir")
+    os.system("ls - l")
+    glpsol_dir = r"../../glpk-4.35/examples/glpsol"
+    output_txt = f"{ilp_filename[:-4]}.txt"
+    os.system(rf"{glpsol_dir} --cpxlp {ilp_filename} -o {output_txt}")
+    os.system(f"more {output_txt}")
 
     # NOTE might need non negative constraints? test and confirm
 
@@ -148,7 +155,7 @@ def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, uni
         Generates the minimize funciton part of an ILP file using 
         the given unit costs and writes it to the given ilp list depending
         on the schedule_obj.
-        \nML-RC ex. "  blah blah
+        \nML-RC ex. "  1x21 + 2x22 + 1x31 + 2x32 + 3x33 + 2x52 + 3x53 + 2x62 + 3x63 + 4x64 + 3x73 + 4x74
         \nMR-LC ex. "  2a1 + 2a2 + 3a3 + 5a4"
     '''
     if schedule_obj == "ML-RC":
