@@ -63,7 +63,7 @@ def main(argv):
     print(f"unit_costs: {unit_cost}")
 
     # ensure user inserts the right amount of area constraints
-    if len(unit_cost) - 2 != len(args.area_cost):
+    if args.area_cost and len(unit_cost) - 2 != len(args.area_cost):
         raise Exception(f'Expected {len(unit_cost) - 2} area constraints but only {len(args.area_cost)} supplied.')
 
     # get the unit times for ASAP and ALAP
@@ -94,7 +94,7 @@ def main(argv):
     # ex. ./glpsol --cpxlp 'ilp_filename'
     glpsol_dir = r"../../glpk-4.35/examples/glpsol" # NOTE: assumes glpk dir is two directories up
     output_txt = f"{ilp_filename[:-3]}.txt"
-    os.system(rf"{glpsol_dir} --cpxlp {ilp_filename} -o {output_txt}")
+    os.system(rf"{glpsol_dir} --cpxlp {ilp_filename} -o {output_txt} >/dev/null 2>&1")
 
     # Parse the output and save it into a dict
     min_results = {"obj": 0, "counts": {}}
@@ -111,7 +111,7 @@ def main(argv):
         print(f"The minimized latency is {min_results['obj']}.")
         print("Here are each of the nodes and their schedule:")
         for unit, count in min_results['counts'].items():
-            print(f"{unit}\t{count}") # TODO make specific to this
+            print(f"{unit}\t{count}") # TODO make specific to this, rn lp file is incorrect for some reason
     elif schedule_obj == "MR-LC":
         print(f"The minimized area is {min_results['obj']}.")
         print("Here are each of the resources and their minimized counts:")
@@ -121,9 +121,7 @@ def main(argv):
 
     # TODO if time allows, generate a graph like in fig 1. (parteo)
 
-    # TODO Final things: clean up comments, remove unused code, clean documentaiton, README
-    # follow assignment requirements: correct directories, test/example scripts to show case features, 
-    # batch files, record videos, push pres and vid and docs to git, submit.
+    # TODO Final things: README documentation, double check and remove unused code
 
 
 def get_node_unit_cost(graph):
