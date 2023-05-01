@@ -49,7 +49,7 @@ def main(argv):
         schedule_obj = "both" # TODO read/determine what pareto-optimal analysis using both results looks like
     
     print(f"schedule: {schedule_obj}")
-    ilp_filename = rf"auto_{schedule_obj}.ilp" 
+    ilp_filename = rf"auto_{schedule_obj}.lp" 
     
     # error check: make sure there is not a cycle
     visited = rec_stack = dict.fromkeys(sorted(graph), False)
@@ -91,7 +91,7 @@ def main(argv):
     os.system("dir")
     os.system("ls - l")
     glpsol_dir = r"../../glpk-4.35/examples/glpsol"
-    output_txt = f"{ilp_filename[:-4]}.txt"
+    output_txt = f"{ilp_filename[:-3]}.txt"
     os.system(rf"{glpsol_dir} --cpxlp {ilp_filename} -o {output_txt}")
     os.system(f"more {output_txt}")
 
@@ -314,7 +314,7 @@ def generate_rsrc_cstrs(graph, node_unit, unit_cost, schedule_obj, unit_times_as
     nodes = get_nodes(graph)
     for unit, _ in list(unit_cost.items())[1:-1]:# ignore source and sink
         nodes_unit = [n for n, u in node_unit.items() if unit == u]
-        for time in range(1, unit_times_asap['t']):
+        for time in range(1, unit_times_alap['t']):
             rsrc_cstr = []
             for node in nodes_unit:
                 start_time = unit_times_asap[node]
