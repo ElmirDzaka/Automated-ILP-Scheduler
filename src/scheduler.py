@@ -92,7 +92,7 @@ def main(argv):
 
     # Run ILP solver (GLPK command) and output the text file
     # ex. ./glpsol --cpxlp 'ilp_filename'
-    glpsol_dir = r"../../glpk-4.35/examples/glpsol" # NOTE: assumes glpk dir is two directories up
+    glpsol_dir = r"../../glpk-4.35/examples/glpsol" # NOTE: assumes glpk dir is two directories up (same dir as the repo)
     output_txt = f"{ilp_filename[:-3]}.txt"
     os.system(rf"{glpsol_dir} --cpxlp {ilp_filename} -o {output_txt} >/dev/null 2>&1")
 
