@@ -5,9 +5,7 @@ Takes an edgelist graph represented from a DFG and automatically generates the s
 ## Documentation
 
 ### Setup 
-
 * Use a Linux distribution
-
 * Install Git and clone this repo:
 
 `sudo apt update; sudo apt install git`
@@ -18,12 +16,9 @@ Takes an edgelist graph represented from a DFG and automatically generates the s
 
 `sudo apt install python3`
 
-`pip install networkx`
-
-`pip install tabulate`
+`pip install networkx tabulate`
 
 * Install GLPK **(in the same directory as this repo)**
-
     * Download GLPK source and unzip the file:
     
     `wget http://ftp.gnu.org/gnu/glpk/glpk-4.35.tar.gz; tar -zxvf glpk-4.35.tar.gz`
@@ -40,7 +35,7 @@ Takes an edgelist graph represented from a DFG and automatically generates the s
     
     `make`
     
-    * Verify your installation and run an example. If succeeds, you should see the same results shown in Figure 1.
+    * Verify your installation and run an example. If it succeeds, you should see the same results shown in Figure 1.
     
     `cd examples; ./glpsol --cpxlp plan.lp`
     
@@ -73,7 +68,6 @@ Takes an edgelist graph represented from a DFG and automatically generates the s
 `python scheduler.py -g test.edgelist -l 4 -a 1 3 3 4`
 
 #### Shell Scripts
-
 Or just run the given shell scripts that use the supplied graph 'test.edgelist' and set constraints:
 
 `./run_ml-rc.sh; ./run_mr-lc.sh; ./run_both.sh`
@@ -85,6 +79,10 @@ Or just run the given shell scripts that use the supplied graph 'test.edgelist' 
 **test.edgelist**
 
 * the generated edgelist file, each line represents a single edge: the two nodes that are connected and their attributes
+
+* Figure 2: Visual graph for **test.edgelist**
+
+![Figure 2: Visual graph for 'test.edgelist'](fig_2.png)
 
 * we've set it up so the attributes contain the node operation types and costs (for both the root and child)
 
@@ -99,7 +97,7 @@ Or just run the given shell scripts that use the supplied graph 'test.edgelist' 
 
 ### Tests
 
-* Each test has shell scripts that can be run that show off the error checking implemented in the code:
+* Each test has shell scripts that show off the error checking implemented in the code:
 
 `cd ../test/`
 
@@ -110,16 +108,14 @@ Or just run the given shell scripts that use the supplied graph 'test.edgelist' 
 * Our scheduler automatically detects errors and cycles in the supplied edgelist graph
 * Our scheduler parses the GLPK output and displays it nicely back to the user
 * Our scheduler handles MR-LC and ML-RC optimization
-* Our scheduler works with edgelists defined however the user wants, it just expects the first edge to be the source and the last edge to be the node
+* Our scheduler works with edgelists defined however way the user wants, it just expects the first edge to be the source and the last edge to be the node
 
 ## Future Features
 
-* Improve MR-LC and ML-RC optimization
-* For ML-RC, sort output nodes and put an asterisk next to critical ones
 * Verbose option
 * Take a single area cost and generate all the possible resource combinations
 * Generalize edgelist.py to take user input and generate custom DFGs
-* Create timing benchmarks for different sized DFGs
+* Create timing benchmarks for different-sized DFGs
 
 ## Authors
 
