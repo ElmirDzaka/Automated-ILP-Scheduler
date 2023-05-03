@@ -14,6 +14,7 @@ import sys
 import argparse
 import os
 import networkx as nx
+from tabulate import tabulate
 
 
 def main(argv):
@@ -81,8 +82,9 @@ def main(argv):
     # ex. generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
     generated_ilp = []
     integer_set = []
+    crit_path_nodes = []
     generated_ilp.append("Minimize")
-    generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp)
+    generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp, crit_path_nodes)
     generated_ilp.append("Subject To")
     generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
     generate_rsrc_cstrs(schedule_obj, graph, unit_cost, node_unit, args.area_cost, unit_times_asap, unit_times_alap, generated_ilp)
@@ -94,7 +96,7 @@ def main(argv):
     # ex. ./glpsol --cpxlp 'ilp_filename'
     glpsol_dir = r"../../glpk-4.35/examples/glpsol" # NOTE: assumes glpk dir is two directories up (same dir as the repo)
     output_txt = f"{ilp_filename[:-3]}.txt"
-    os.system(rf"{glpsol_dir} --cpxlp {ilp_filename} -o {output_txt} >/dev/null 2>&1")
+    os.system(rf"{glpsol_dir} --cpxlp {ilp_filename} -o {output_txt} >/dev/null 2>&1") # >/dev/null 2>&1
 
     # Parse the output and save it into a dict
     min_results = {"obj": 0, "counts": {}}
@@ -108,10 +110,19 @@ def main(argv):
     
     # Display the results nicely back to the user (QoR - Quality of Results)
     if schedule_obj == "ML-RC":
+        data = []
         print(f"The minimized latency is {min_results['obj']}.")
-        print("Here are each of the nodes and their schedule:")
+        print("Here is a table depicting each node with its optimized cycle:")
+        for node in crit_path_nodes:
+            node_array = [node, unit_times_asap[node]]
+            data.append(node_array)
         for unit, count in min_results['counts'].items():
-            print(f"{unit}\t{count}") # TODO make specific to this, rn lp file is incorrect for some reason
+            if int(count) == 1:
+                unit = unit.split("_")
+                node_array = [get_nodes(graph)[int(unit[1])], unit[2]]
+                data.append(node_array)
+
+        print(tabulate(data, headers = ["Node", "Cycle"]))
     elif schedule_obj == "MR-LC":
         print(f"The minimized area is {min_results['obj']}.")
         print("Here are each of the resources and their minimized counts:")
@@ -169,7 +180,7 @@ def is_cyclic(graph, node, visited, rec_stack):
     return False # no cycle exists
 
 
-def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp, ml_var_letter='x', mr_var_letter='a'):
+def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp, crit_path_nodes, ml_var_letter='x', mr_var_letter='a'):
     '''
         Generates the minimize funciton part of an ILP file using 
         the given unit costs and writes it to the given ilp list depending
@@ -186,11 +197,13 @@ def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, uni
             start_time = unit_times_asap[node]
             end_time = unit_times_alap[node]
             if start_time == end_time: # on critical path, redundant to include
+                if node != "s" and node != "t":
+                    crit_path_nodes.append(node)
                 continue
             else:
                 for time in range(start_time, end_time + 1):
-                    min_func.append(f"{time}{ml_var_letter}{id}{time}")
-                    integer_set.append(f"{ml_var_letter}{id}{time}")
+                    min_func.append(f"{time}{ml_var_letter}_{id}_{time}")
+                    integer_set.append(f"{ml_var_letter}_{id}_{time}")
         min_func = "  " + " + ".join(x for x in min_func)
         generated_ilp.append(min_func)
         return min_func
@@ -299,7 +312,7 @@ def generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, 
         end_time = unit_times_alap[node]
         exec_cstr = []
         for time in range(start_time, end_time + 1):
-            exec_cstr.append(f"{var_letter}{id}{time}")
+            exec_cstr.append(f"{var_letter}_{id}_{time}")
 
         # ex. "  e0: x01 = 1" or "  e3: x31 + x32 + x33 = 1"
         exec_cstr = " + ".join(x for x in exec_cstr)
@@ -342,11 +355,14 @@ def generate_rsrc_cstrs(schedule_obj, graph, unit_cost, node_unit, unit_count, u
                 start_time = unit_times_asap[node]
                 end_time = unit_times_alap[node]
                 if time >= start_time and time <= end_time:
-                    rsrc_cstr.append(f"{var_letter}{nodes.index(node)}{time}")
+                    rsrc_cstr.append(f"{var_letter}_{nodes.index(node)}_{time}")
             if rsrc_cstr:
                 # ex. "  r0: x42 - a1 <= 0" or "  r3: x11 + x21 - a3 <= 0"
                 rsrc_cstr = " + ".join(x for x in rsrc_cstr)
-                line = f"  {cstr_var_letter}{cstr_id}: {rsrc_cstr} - {subtrahend} <= 0"
+                if schedule_obj == "MR-LC":
+                    line = f"  {cstr_var_letter}{cstr_id}: {rsrc_cstr} - {subtrahend} <= 0"
+                if schedule_obj == "ML-RC":
+                    line = f"  {cstr_var_letter}{cstr_id}: {rsrc_cstr} <= {subtrahend}"
                 generated_ilp.append(line)
                 cstr_id += 1
 
@@ -382,13 +398,13 @@ def generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp, v
                 # parent exec times
                 dep_cstr = []
                 for time in range(start_time, end_time + 1):
-                    dep_cstr.append(f"{time}{var_letter}{id}{time}")
+                    dep_cstr.append(f"{time}{var_letter}_{id}_{time}")
                 plus_count = len(dep_cstr) - 1
 
                 # parent exec times
                 for time in range(parent_start_time, parent_end_time + 1):
                     parent_id = nodes.index(parent)
-                    dep_cstr.append(f"{time}{var_letter}{parent_id}{time}") 
+                    dep_cstr.append(f"{time}{var_letter}_{parent_id}_{time}") 
                 
                 # ex. "  d0: 3x53 + 2x52 - 2x22 - 1x21 >= 1"
                 dep_cstr = " - ".join(x for x in dep_cstr)
