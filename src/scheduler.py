@@ -123,21 +123,22 @@ def run_scheduler(schedule_obj, graph, args):
     
     # display the results nicely back to the user (QoR - Quality of Results)
     if schedule_obj == "ML-RC":
-        print(f"The minimized latency is {min_results['obj']}.")
-        print("Here is a table depicting each node with its optimized cycle:")
         data = []
-        for node in crit_path_nodes:
+        for node in crit_path_nodes: # show critical path nodes first
             data.append([node, unit_times_asap[node]])
         for unit, count in min_results['counts'].items():
             if int(count) == 1:
                 unit = unit.split("_")
                 node_id = int(unit[1])
                 cycle = unit[2]
-                data.append(get_nodes(graph)[node_id], cycle)
+                data.append([get_nodes(graph)[node_id], cycle])
+        min_latency = max([int(x[1]) for x in data])
+        print(f"The minimized latency is {min_latency}.")
+        print("Here is each node with its optimized cycle:")
         print(tabulate(data, headers = ["Node", "Cycle"]))
     elif schedule_obj == "MR-LC":
         print(f"The minimized area is {min_results['obj']}.")
-        print("Here are each of the resources and their minimized counts:")
+        print("Here is each resource with its optimized count:")
         data = [[unit, count] for unit, count in min_results['counts'].items()]
         print(tabulate(data, headers = ["Resource", "Min Count"]))
 

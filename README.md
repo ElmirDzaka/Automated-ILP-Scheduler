@@ -5,7 +5,9 @@ Takes an edgelist graph represented from a DFG and automatically generates the s
 ## Documentation
 
 ### Setup 
+
 * Use a Linux distribution
+
 * Install Git and clone this repo:
 
 `sudo apt update; sudo apt install git`
@@ -21,6 +23,7 @@ Takes an edgelist graph represented from a DFG and automatically generates the s
 `pip install tabulate`
 
 * Install GLPK **(in the same directory as this repo)**
+
     * Download GLPK source and unzip the file:
     
     `wget http://ftp.gnu.org/gnu/glpk/glpk-4.35.tar.gz; tar -zxvf glpk-4.35.tar.gz`
@@ -70,6 +73,7 @@ Takes an edgelist graph represented from a DFG and automatically generates the s
 `python scheduler.py -g test.edgelist -l 4 -a 1 3 3 4`
 
 #### Shell Scripts
+
 Or just run the given shell scripts that use the supplied graph 'test.edgelist' and set constraints:
 
 `./run_ml-rc.sh; ./run_mr-lc.sh; ./run_both.sh`
@@ -101,7 +105,6 @@ Or just run the given shell scripts that use the supplied graph 'test.edgelist' 
 
 `./run_v9_t_cycle_error.sh`
 
-
 ## Features
 
 * Our scheduler automatically detects errors and cycles in the supplied edgelist graph
@@ -111,6 +114,8 @@ Or just run the given shell scripts that use the supplied graph 'test.edgelist' 
 
 ## Future Features
 
+* Improve MR-LC and ML-RC optimization
+* For ML-RC, sort output nodes and put an asterisk next to critical ones
 * Verbose option
 * Take a single area cost and generate all the possible resource combinations
 * Generalize edgelist.py to take user input and generate custom DFGs
