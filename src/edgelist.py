@@ -17,11 +17,6 @@ def main(argv):
     main:
     The main function calls all helper methods and runs the program.
     """
-    #name_edgelist_file = "test.edgelist"
-    #name_edgelist_file = "rand_DFG_s10_1.edgelist"
-    #size = 9
-    #generate_graphs(name_edgelist_file, size)
-
     graph = write_edgelist()
     nx.write_edgelist(graph, "./test.edgelist")
 
@@ -33,7 +28,6 @@ def main(argv):
 
 def write_edgelist():
     G = nx.DiGraph(schedule="ilp")
-    #add nodes from the example DFG
 
     # unit map
     # 0 - source
@@ -66,20 +60,13 @@ def write_edgelist():
     #sink
     G.add_node("t", unit=5)
 
-    #connect edges
-
-    # 4 dictionaries
-    # 1 for each UNIT
-    # ALU - key (v1, 3), (v2, 3), (v3, 4)
-    # or use SET 
-    # alu_cost = value
+    # connect edges
 
     # each unit has associate cost
     # alu - cost 2
     # mult - cost 2
 
     # we store root, child type and cost for each
-    # or just root, child,
 
     # unit map  / costs
     # 0 - source(s)     0

@@ -4,11 +4,11 @@ Elmir Dzaka
 Kidus Yohannes
 
 Summary:
-    his file takes in an edgelist graph and and automatically generates the schedule using ILP solver GLPK
+    This file takes in an edgelist graph and and automatically generates the schedule using ILP solver GLPK
     and produces the Quality-of-Results. Supports ML-RC, MR-LC, or both using Pareto-optimal analysis.
 
 Start date: 4/3/2023
-Last updated: 4/30/2023
+Last updated: 5/3/2023
 """
 import sys
 import argparse
@@ -47,10 +47,23 @@ def main(argv):
     elif args.latency and not args.area_cost:
         schedule_obj = "MR-LC"
     elif args.latency and args.area_cost:
-        schedule_obj = "both" # TODO read/determine what pareto-optimal analysis using both results looks like
+        schedule_obj = "both" 
     
+    # run scheduler based on chosen objective
+    if schedule_obj == "ML-RC" or schedule_obj == "MR-LC":
+        run_scheduler(schedule_obj, graph, args)
+    # TODO read/determine what pareto-optimal analysis using both results looks like
+    elif schedule_obj == "both":
+        run_scheduler("ML-RC", graph, args)
+        run_scheduler("MR-LC", graph, args)
+    
+
+def run_scheduler(schedule_obj, graph, args):
+    '''
+        Runs the entire scheduler based on the given schedule objective (ML-RC or MR-LC), graph and args.
+    '''
     print(f"schedule: {schedule_obj}")
-    ilp_filename = rf"auto_{schedule_obj}.lp" 
+    lp_filename = rf"auto_{schedule_obj}.lp" 
     
     # error check: make sure there is not a cycle
     visited = rec_stack = dict.fromkeys(sorted(graph), False)
@@ -78,27 +91,27 @@ def main(argv):
     unit_times_alap = get_alap(graph, latency_cstr)
     print("asap: ", unit_times_asap, "\nalap: ", unit_times_alap)
 
-    ### Generate ILP file, we can generate this line by line using the graph
+    ### generate ILP file, we can generate this line by line using the graph
     # ex. generated_ilp = ["Minimize", "2a1 + 2a2 + 3a3 + 5a4", "Subject To", "e0: x01 = 1", "...", "Integer", "a1 a2 a3 a4", "End"]
     generated_ilp = []
     integer_set = []
     crit_path_nodes = []
     generated_ilp.append("Minimize")
-    generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp, crit_path_nodes)
+    generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, crit_path_nodes, generated_ilp)
     generated_ilp.append("Subject To")
     generate_exec_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
     generate_rsrc_cstrs(schedule_obj, graph, unit_cost, node_unit, args.area_cost, unit_times_asap, unit_times_alap, generated_ilp)
     generate_dep_cstrs(graph, unit_times_asap, unit_times_alap, generated_ilp)
     generate_closing(schedule_obj, integer_set, unit_cost, generated_ilp)
-    write_list(ilp_filename, generated_ilp)
+    write_list(lp_filename, generated_ilp)
 
-    # Run ILP solver (GLPK command) and output the text file
-    # ex. ./glpsol --cpxlp 'ilp_filename'
+    # run ILP solver (GLPK command) and output the text file
+    # ex. ./glpsol --cpxlp 'lp_filename'
     glpsol_dir = r"../../glpk-4.35/examples/glpsol" # NOTE: assumes glpk dir is two directories up (same dir as the repo)
-    output_txt = f"{ilp_filename[:-3]}.txt"
-    os.system(rf"{glpsol_dir} --cpxlp {ilp_filename} -o {output_txt} >/dev/null 2>&1") # >/dev/null 2>&1
+    output_txt = f"{lp_filename[:-3]}.txt"
+    os.system(rf"{glpsol_dir} --cpxlp {lp_filename} -o {output_txt} >/dev/null 2>&1")
 
-    # Parse the output and save it into a dict
+    # parse the output and save it into a dict
     min_results = {"obj": 0, "counts": {}}
     with open(output_txt) as file:
         for line in file:
@@ -108,33 +121,25 @@ def main(argv):
             elif len(line) == 5 and line[2] == '*':
                 min_results["counts"][line[1]] = line[3]            
     
-    # Display the results nicely back to the user (QoR - Quality of Results)
+    # display the results nicely back to the user (QoR - Quality of Results)
     if schedule_obj == "ML-RC":
-        data = []
         print(f"The minimized latency is {min_results['obj']}.")
         print("Here is a table depicting each node with its optimized cycle:")
+        data = []
         for node in crit_path_nodes:
-            node_array = [node, unit_times_asap[node]]
-            data.append(node_array)
+            data.append([node, unit_times_asap[node]])
         for unit, count in min_results['counts'].items():
             if int(count) == 1:
                 unit = unit.split("_")
-                node_array = [get_nodes(graph)[int(unit[1])], unit[2]]
-                data.append(node_array)
+                node_id = int(unit[1])
+                cycle = unit[2]
+                data.append(get_nodes(graph)[node_id], cycle)
         print(tabulate(data, headers = ["Node", "Cycle"]))
     elif schedule_obj == "MR-LC":
-        data = []
         print(f"The minimized area is {min_results['obj']}.")
         print("Here are each of the resources and their minimized counts:")
-        for unit, count in min_results['counts'].items():
-            node_array = [unit, count]
-            data.append(node_array)
+        data = [[unit, count] for unit, count in min_results['counts'].items()]
         print(tabulate(data, headers = ["Resource", "Min Count"]))
-        
-
-    # TODO if time allows, generate a graph like in fig 1. (parteo)
-
-    # TODO Final things: README documentation, double check and remove unused code
 
 
 def get_node_unit_cost(graph):
@@ -182,7 +187,7 @@ def is_cyclic(graph, node, visited, rec_stack):
     return False # no cycle exists
 
 
-def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, generated_ilp, crit_path_nodes, ml_var_letter='x', mr_var_letter='a'):
+def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, unit_cost, integer_set, crit_path_nodes, generated_ilp, ml_var_letter='x', mr_var_letter='a'):
     '''
         Generates the minimize funciton part of an ILP file using 
         the given unit costs and writes it to the given ilp list depending
@@ -190,6 +195,7 @@ def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, uni
         \nML-RC ex. "  1x21 + 2x22 + 1x31 + 2x32 + 3x33 + 2x52 + 3x53 + 2x62 + 3x63 + 4x64 + 3x73 + 4x74
         \nMR-LC ex. "  2a1 + 2a2 + 3a3 + 5a4"
     '''
+    s = list(graph.nodes())[0] # source node (assumes is the first node)
     t = list(graph.nodes())[-1] # sink node (assumes is the last node)
     if schedule_obj == "ML-RC":
         min_func = []
@@ -199,7 +205,7 @@ def generate_min_func(schedule_obj, graph, unit_times_asap, unit_times_alap, uni
             start_time = unit_times_asap[node]
             end_time = unit_times_alap[node]
             if start_time == end_time: # on critical path, redundant to include
-                if node != "s" and node != "t":
+                if node != s and node != t: # ignore source and sink node
                     crit_path_nodes.append(node)
                 continue
             else:

@@ -1,1 +1,1 @@
-python scheduler.py -g test.edgelist -a 1 1 1 1
+python scheduler.py -g test.edgelist -a 1 2 3 4
