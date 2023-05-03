@@ -121,13 +121,15 @@ def main(argv):
                 unit = unit.split("_")
                 node_array = [get_nodes(graph)[int(unit[1])], unit[2]]
                 data.append(node_array)
-
         print(tabulate(data, headers = ["Node", "Cycle"]))
     elif schedule_obj == "MR-LC":
+        data = []
         print(f"The minimized area is {min_results['obj']}.")
         print("Here are each of the resources and their minimized counts:")
         for unit, count in min_results['counts'].items():
-            print(f"{unit}\t{count}")
+            node_array = [unit, count]
+            data.append(node_array)
+        print(tabulate(data, headers = ["Resource", "Min Count"]))
         
 
     # TODO if time allows, generate a graph like in fig 1. (parteo)
