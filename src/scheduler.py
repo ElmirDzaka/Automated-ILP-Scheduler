@@ -105,6 +105,8 @@ def run_scheduler(schedule_obj, graph, args):
     generate_closing(schedule_obj, integer_set, unit_cost, generated_ilp)
     write_list(lp_filename, generated_ilp)
 
+    #TODO generate optimal pareto-analysis by checking difference of supplied constraints with iterative glpk runs
+
     # run ILP solver (GLPK command) and output the text file
     # ex. ./glpsol --cpxlp 'lp_filename'
     glpsol_dir = r"../../glpk-4.35/examples/glpsol" # NOTE: assumes glpk dir is two directories up (same dir as the repo)

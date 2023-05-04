@@ -116,6 +116,7 @@ Or just run the given shell scripts that use the supplied graph 'test.edgelist' 
 * Take a single area cost and generate all the possible resource combinations
 * Generalize edgelist.py to take user input and generate custom DFGs
 * Create timing benchmarks for different-sized DFGs
+* Optimize ILP schduler using Pareto-Optimal Analysis when supplying both latency and area constraints
 
 ## Authors
 
